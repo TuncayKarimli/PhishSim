@@ -1,6 +1,6 @@
 """Standalone background scheduler employee for multi-container deployments.
 
-Run with:
+Execute with:
     python worker.py
 """
 import signal
