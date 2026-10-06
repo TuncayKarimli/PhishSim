@@ -1,6 +1,8 @@
 """Entry point. Run with:  python run.py"""
 import os
 
+numb=1
+
 from app import create_app
 from app.scheduler import start_scheduler
 from config import Config
