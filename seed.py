@@ -1,4 +1,4 @@
-"""Optional: create a demo campaign with scoped targets and sample activity so you can explore immediately.
+"""Optional: prepare a demo campaign with scoped targets and sample activity so you can explore immediately.
 
     python seed.py
 """
