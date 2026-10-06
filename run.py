@@ -2,6 +2,7 @@
 import os
 
 num=1
+numb=1
 
 from app import create_app
 from app.scheduler import start_scheduler
