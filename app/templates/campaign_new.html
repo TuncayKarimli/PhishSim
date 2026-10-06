@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}New campaign · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>New campaign</h1>
+    <p class="sub">Define the email, select an SMTP profile, configure attachments or QR codes, and import scoped targets.</p>
+  </div>
+  <a class="btn secondary" href="{{ url_for('dashboard.index') }}">Cancel</a>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div class="card">
+    <div class="grid-2">
+      <div class="field">
+        <label for="name">Campaign name <span class="hint">— internal only</span></label>
+        <input type="text" id="name" name="name" required placeholder="Q3 Awareness Test">
+      </div>
+      <div class="field">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty" name="difficulty">
+          <option value="easy">Easy — obvious red flags</option>
+          <option value="medium" selected>Medium — plausible</option>
+          <option value="hard">Hard — highly targeted</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="sender">From <span class="hint">— sender shown to targets</span></label>
+        <input type="text" id="sender" name="sender" required value="IT Support &lt;it-support@example.com&gt;">
+      </div>
+      <div class="field">
+        <label for="smtp_profile_id">SMTP Sending Profile</label>
+        <select id="smtp_profile_id" name="smtp_profile_id">
+          {% for sp in smtp_profiles %}
+          <option value="{{ sp.id }}" {{ 'selected' if sp.is_default }}>
+            {{ sp.name }} ({{ sp.host }}:{{ sp.port }}){% if sp.is_default %} — default{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="spread" style="margin-bottom:10px;">
+      <b>Email composer &amp; live preview</b>
+      <span id="linkBadge" class="pill reported">✓ Contains {{ '{{link}}' }} / {{ '{{qr_code}}' }}</span>
+    </div>
+    <div class="field">
+      <label for="template_picker">Start from a template <span class="hint">— supports {{ '{{link}}' }} and {{ '{{qr_code}}' }}</span></label>
+      <select id="template_picker">
+        <option value="">— write my own —</option>
+        {% for id, t in tpl_map.items() %}
+        <option value="{{ id }}">{{ t.subject }} ({{ t.difficulty }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="subject">Subject</label>
+      <input type="text" id="subject" name="subject" required placeholder="Action required: confirm your account">
+    </div>
+    <div class="grid-2">
+      <div class="field" style="margin-bottom:0">
+        <label for="email_body">Body (HTML) <span class="hint">— {{ '{{name}}' }}, {{ '{{link}}' }}, {{ '{{qr_code}}' }}, {{ '{{report_link}}' }}</span></label>
+        <textarea id="email_body" name="email_body" rows="9" required></textarea>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px;">Inbox live preview <span class="hint" style="font-weight:400">— as seen by “Alex”</span></label>
+        <div class="email-preview-wrap" style="margin-top:0">
+          <div class="email-preview-head">
+            <div><b>From:</b> <span id="prevFrom" class="meta"></span></div>
+            <div><b>Subject:</b> <span id="prevSubj"></span></div>
+          </div>
+          <div class="email-preview-body" id="prevBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="grid-2">
+      <div class="field" style="margin-bottom:0">
+        <label for="attachment_type">Attachment Simulation <span class="hint">— tracked beacon file</span></label>
+        <select id="attachment_type" name="attachment_type">
+          <option value="none" selected>None — email body only</option>
+          <option value="html">Tracked HTML Attachment (.html)</option>
+          <option value="pdf">Tracked PDF Document (.pdf)</option>
+        </select>
+      </div>
+      <div class="field" id="att_name_field" style="margin-bottom:0;display:none;">
+        <label for="attachment_name">Attachment filename</label>
+        <input type="text" id="attachment_name" name="attachment_name" placeholder="Q3_Compensation_Statement.pdf">
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>What counts as the outcome?</label>
+      <div class="radio-row">
+        <label>
+          <input type="radio" name="landing_type" value="credentials" checked>
+          <span>Credential entry
+            <span class="desc">Target reaches a login page; submitting is the failure.</span></span>
+        </label>
+        <label>
+          <input type="radio" name="landing_type" value="click">
+          <span>Link click
+            <span class="desc">Clicking the link is the failure; go straight to training.</span></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="field">
+      <label>Landing page <span class="hint">— login page shown for credential-entry campaigns</span></label>
+      <div class="radio-row">
+        <label>
+          <input type="radio" name="landing_page" value="outlook">
+          <span>Outlook <span class="desc">Microsoft sign-in</span></span>
+        </label>
+        <label>
+          <input type="radio" name="landing_page" value="gmail">
+          <span>Gmail <span class="desc">Google sign-in</span></span>
+        </label>
+        <label>
+          <input type="radio" name="landing_page" value="custom" checked>
+          <span>Built-in Custom <span class="desc">Branded with company name</span></span>
+        </label>
+        <label>
+          <input type="radio" name="landing_page" value="custom_template">
+          <span>Custom HTML Template <span class="desc">From Landing Pages editor</span></span>
+        </label>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field" id="company_field">
+        <label for="landing_company">Company name <span class="hint">— shown on the page</span></label>
+        <input type="text" id="landing_company" name="landing_company" placeholder="Acme Corp">
+      </div>
+      <div class="field" id="custom_lp_field" style="display:none;">
+        <label for="custom_landing_id">Select Custom Landing Page</label>
+        <select id="custom_landing_id" name="custom_landing_id">
+          {% for lp in custom_landings %}
+          <option value="{{ lp.id }}">{{ lp.name }} ({{ lp.slug }})</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <details class="section">
+    <summary>Schedule &amp; drip sending (optional)</summary>
+    <p class="meta" style="margin-top:0">Leave the time blank to send manually with the Send button. Set a batch size to drip in waves.</p>
+    <div class="grid-2">
+      <div class="field">
+        <label for="scheduled_at">Send at <span class="hint">— UTC</span></label>
+        <input type="datetime-local" id="scheduled_at" name="scheduled_at">
+      </div>
+      <div class="field">
+        <label for="batch_size">Batch size <span class="hint">— 0 = all at once</span></label>
+        <input type="number" id="batch_size" name="batch_size" min="0" value="0">
+      </div>
+    </div>
+    <div class="field">
+      <label for="batch_interval">Minutes between batches</label>
+      <input type="number" id="batch_interval" name="batch_interval" min="0" value="0">
+    </div>
+  </details>
+
+  <div class="card">
+    <div class="field">
+      <label for="csv_file">Targets — upload CSV <span class="hint">— columns: email, first_name, last_name, department, location, business_unit</span></label>
+      <input type="file" id="csv_file" name="csv_file" accept=".csv">
+    </div>
+    <div class="field">
+      <label for="targets_text">…or paste one target per line <span class="hint">— email[,first_name,last_name,department,location,business_unit]</span></label>
+      <textarea id="targets_text" name="targets_text" rows="4" placeholder="alex@example.com,Alex,Rivera,Finance,London,Corporate&#10;sam@example.com,Sam,Okafor,Engineering,New York,Product"></textarea>
+    </div>
+  </div>
+
+  <button class="btn" type="submit" style="margin-top:16px">Create campaign</button>
+</form>
+
+<script>
+  const TEMPLATES = {{ tpl_map|tojson }};
+  const picker = document.getElementById("template_picker");
+  const sender = document.getElementById("sender");
+  const subject = document.getElementById("subject");
+  const body = document.getElementById("email_body");
+  const difficulty = document.getElementById("difficulty");
+  const prevFrom = document.getElementById("prevFrom");
+  const prevSubj = document.getElementById("prevSubj");
+  const prevBody = document.getElementById("prevBody");
+  const linkBadge = document.getElementById("linkBadge");
+
+  const QR_PLACEHOLDER_HTML = '<div style="display:inline-grid;place-items:center;width:132px;height:132px;border:2px dashed #2563eb;border-radius:8px;background:#f8fafc;color:#1e293b;font-size:11px;font-weight:700;text-align:center;padding:8px;">[Dynamic PNG<br>QR Code<br>{{ '{{qr_code}}' }}]</div>';
+
+  function updatePreview() {
+    prevFrom.textContent = sender.value || "IT Support <it-support@example.com>";
+    prevSubj.textContent = subject.value || "(no subject)";
+    var raw = body.value || "";
+    var hasLink = /\{\{\s*(link|qr_code)\s*\}\}/i.test(raw);
+    linkBadge.className = "pill " + (hasLink ? "reported" : "clicked");
+    linkBadge.textContent = hasLink ? "✓ Contains {{ '{{link}}' }} / {{ '{{qr_code}}' }}" : "⚠️ Missing {{ '{{link}}' }} or {{ '{{qr_code}}' }}";
+
+    var rendered = raw
+      .replace(/\{\{\s*name\s*\}\}/gi, "Alex")
+      .replace(/\{\{\s*link\s*\}\}/gi, "#preview-link")
+      .replace(/\{\{\s*qr_code\s*\}\}/gi, QR_PLACEHOLDER_HTML)
+      .replace(/\{\{\s*report_link\s*\}\}/gi, "#preview-report");
+    if (rendered.indexOf("#preview-report") === -1) {
+      rendered += '<hr style="border:none;border-top:1px solid #dddddd;margin:18px 0 10px"><p style="font-size:12px;color:#888888">Think this message is suspicious? <a href="#preview-report">Report it as phishing</a>.</p>';
+    }
+    prevBody.innerHTML = rendered;
+  }
+
+  function applyTemplate(id) {
+    const t = TEMPLATES[id];
+    if (!t) return;
+    subject.value = t.subject;
+    body.value = t.body;
+    if (difficulty) difficulty.value = t.difficulty;
+    updatePreview();
+  }
+  picker.addEventListener("change", function () { applyTemplate(this.value); });
+  sender.addEventListener("input", updatePreview);
+  subject.addEventListener("input", updatePreview);
+  body.addEventListener("input", updatePreview);
+
+  const firstId = Object.keys(TEMPLATES)[0];
+  if (firstId && !body.value.trim()) {
+    picker.value = firstId;
+    applyTemplate(firstId);
+  } else {
+    updatePreview();
+  }
+
+  const companyField = document.getElementById("company_field");
+  const customLpField = document.getElementById("custom_lp_field");
+  function syncLandingFields() {
+    const checked = document.querySelector('input[name="landing_page"]:checked');
+    const v = checked ? checked.value : "custom";
+    companyField.style.display = (v === "custom" || v === "custom_template") ? "" : "none";
+    customLpField.style.display = (v === "custom_template") ? "" : "none";
+  }
+  document.querySelectorAll('input[name="landing_page"]').forEach(function (r) {
+    r.addEventListener("change", syncLandingFields);
+  });
+  syncLandingFields();
+
+  const attType = document.getElementById("attachment_type");
+  const attNameField = document.getElementById("att_name_field");
+  function syncAtt() {
+    attNameField.style.display = (attType.value !== "none") ? "" : "none";
+  }
+  attType.addEventListener("change", syncAtt);
+  syncAtt();
+</script>
+{% endblock %}

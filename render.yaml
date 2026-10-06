@@ -1,0 +1,48 @@
+# Render.com blueprint for PhishSim (persistent, week-long demo).
+# One Docker web service + a 1 GB disk for the SQLite DB so campaign data
+# survives restarts and redeploys. A persistent disk requires a paid instance
+# (Starter). Secrets marked `sync: false` are filled in from the dashboard.
+services:
+  - type: web
+    name: phishsim
+    runtime: docker
+    plan: starter
+    region: frankfurt          # pick the region closest to you
+    healthCheckPath: /health
+    autoDeploy: true
+    disk:
+      name: phishsim-data
+      mountPath: /app/instance
+      sizeGB: 1
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true     # Render generates a strong value once
+      - key: DATABASE_URL
+        value: sqlite:////app/instance/phishsim.db
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
+      - key: CSRF_ENABLED
+        value: "true"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: RUN_SCHEDULER
+        value: "true"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USE_TLS
+        value: "true"
+      # --- set these in the dashboard (never commit real values) ---
+      - key: BASE_URL          # set to https://<your-service>.onrender.com after first deploy
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false

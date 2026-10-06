@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}{{ campaign.name }} · PhishSim{% endblock %}
+
+{% macro funnel(stats, stages) %}
+  <div class="funnel">
+    {% for stage in stages %}
+    <div class="funnel-row">
+      <div class="label">{{ stage | capitalize }}</div>
+      <div class="funnel-track">
+        <div class="funnel-fill {{ stage }}" style="width: {{ stats.pct[stage] }}%"></div>
+      </div>
+      <div class="count"><b>{{ stats[stage] }}</b> <span class="pct">/ {{ stats.total }} · {{ stats.pct[stage] }}%</span></div>
+    </div>
+    {% endfor %}
+    {% if stats.attachment_opened > 0 or (campaign.attachment_type and campaign.attachment_type != 'none') %}
+    <div class="funnel-row">
+      <div class="label">Attachment</div>
+      <div class="funnel-track">
+        <div class="funnel-fill clicked" style="width: {{ stats.pct.attachment_opened }}%"></div>
+      </div>
+      <div class="count"><b>{{ stats.attachment_opened }}</b> <span class="pct">/ {{ stats.total }} · {{ stats.pct.attachment_opened }}%</span></div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="reported-stat">
+    <span>🛡️ Reported as phishing <span class="meta">— the outcome we want</span></span>
+    <span><b>{{ stats.reported }}</b> / {{ stats.total }} ({{ stats.pct.reported }}%)</span>
+  </div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ campaign.name }}
+      <span class="tag {{ campaign.difficulty }}">{{ campaign.difficulty }}</span>
+      <span class="tag status">{{ campaign.status }}</span>
+      {% if campaign.is_followup %}<span class="tag hard">auto follow-up</span>{% endif %}
+    </h1>
+    <p class="sub">
+      <b>{{ campaign.subject }}</b> · from {{ campaign.sender }} ·
+      {% if campaign.smtp_profile %}SMTP: {{ campaign.smtp_profile.name }} ·{% endif %}
+      outcome: {{ 'credential entry' if campaign.landing_type == 'credentials' else 'link click' }}
+      {% if campaign.landing_type == 'credentials' %}
+        · page: {{ campaign.custom_landing.name if campaign.custom_landing else (campaign.landing_page or 'custom') }}
+      {% endif %}
+      {% if campaign.attachment_type and campaign.attachment_type != 'none' %}
+        · attachment: {{ campaign.attachment_type|upper }} ({{ campaign.attachment_name or 'default' }})
+      {% endif %}
+      {% if campaign.scheduled_at %} · scheduled {{ campaign.scheduled_at.strftime('%b %d, %H:%M') }} UTC
+        {% if campaign.batch_size %}(drip {{ campaign.batch_size }}/{{ campaign.batch_interval }}min){% endif %}
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<div class="toolbar">
+  {% if current_user.is_admin %}
+  <form method="post" action="{{ url_for('dashboard.send', campaign_id=campaign.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn" type="submit">Send now ({{ stats.total }})</button>
+  </form>
+  <form method="post" action="{{ url_for('dashboard.send', campaign_id=campaign.id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="mode" value="async">
+    <button class="btn secondary" type="submit" title="Send in background without blocking">Queue send</button>
+  </form>
+  <form method="post" action="{{ url_for('dashboard.send_test', campaign_id=campaign.id) }}" style="display:inline-flex; gap:6px; align-items:center;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="email" name="test_email" value="{{ current_user.email }}" placeholder="test@example.com" style="width:175px; height:38px;" required>
+    <button class="btn secondary" type="submit">Send test</button>
+  </form>
+  <a class="btn secondary" href="{{ url_for('dashboard.edit_campaign', campaign_id=campaign.id) }}">Edit</a>
+  {% endif %}
+  <a class="btn secondary" href="{{ url_for('dashboard.export_csv', campaign_id=campaign.id) }}">Export CSV</a>
+  <a class="btn secondary" href="{{ url_for('dashboard.export_pdf', campaign_id=campaign.id) }}">Export PDF</a>
+  {% if current_user.is_admin %}
+  <span class="toolbar-spacer"></span>
+  <form method="post" action="{{ url_for('dashboard.delete_campaign', campaign_id=campaign.id) }}"
+        onsubmit="return confirm('Delete this campaign and all its results?');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button class="btn danger" type="submit">Delete</button>
+  </form>
+  {% endif %}
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Delivered</div>
+    <div class="kpi-val">{{ stats.pct.sent }}%</div>
+    <div class="kpi-sub">{{ stats.sent }} of {{ stats.total }} sent</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Open Rate</div>
+    <div class="kpi-val" style="color: var(--stage-opened)">{{ stats.pct.opened }}%</div>
+    <div class="kpi-sub">{{ stats.opened }} opened · {{ stats.attachment_opened }} attachment(s)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Click Rate</div>
+    <div class="kpi-val" style="color: var(--stage-clicked)">{{ stats.pct.clicked }}%</div>
+    <div class="kpi-sub">{{ stats.clicked }} clicked link / QR</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Compromised</div>
+    <div class="kpi-val" style="color: var(--stage-submitted)">{{ stats.pct.submitted }}%</div>
+    <div class="kpi-sub">{{ stats.submitted }} submitted credentials</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="spread" style="margin-bottom:18px;">
+    <b>Conversion Funnel</b>
+    <span class="meta">Distinct targets reaching each stage</span>
+  </div>
+  {{ funnel(stats, stages) }}
+</div>
+
+<details class="section" style="margin-top:16px;">
+  <summary>Preview campaign email content</summary>
+  <div class="email-preview-wrap" style="margin-bottom:12px;">
+    <div class="email-preview-head">
+      <div><b>From:</b> {{ campaign.sender }}</div>
+      <div><b>Subject:</b> {{ campaign.subject }}</div>
+    </div>
+    <div class="email-preview-body">
+      {{ campaign.email_body | safe }}
+    </div>
+  </div>
+</details>
+
+<div class="card">
+  <div class="spread" style="margin-bottom:12px;">
+    <div>
+      <b>Targets</b>
+      <span class="meta" style="margin-left:6px">{{ campaign.targets | length }} total</span>
+    </div>
+    <div class="filter-bar" style="margin-bottom:0">
+      <input type="text" id="targetSearch" class="search-input" placeholder="Filter by name, email, dept…" style="width:210px">
+      <div class="filter-pills" id="targetFilters">
+        <button type="button" class="filter-pill active" data-filter="all">All</button>
+        <button type="button" class="filter-pill" data-filter="submitted">Submitted</button>
+        <button type="button" class="filter-pill" data-filter="clicked">Clicked</button>
+        <button type="button" class="filter-pill" data-filter="reported">Reported</button>
+        <button type="button" class="filter-pill" data-filter="pending">Pending</button>
+      </div>
+    </div>
+  </div>
+  <table id="targetTable">
+    <thead>
+      <tr><th>Name</th><th>Email</th><th>Department / Scope</th><th>Status</th><th>Last activity (UTC)</th><th>Simulate</th></tr>
+    </thead>
+    <tbody>
+      {% for t in campaign.targets %}
+      <tr data-status="{{ t.status }}" data-reported="{{ 'yes' if t.reported else 'no' }}" data-search="{{ (t.full_name ~ ' ' ~ t.email ~ ' ' ~ t.department ~ ' ' ~ t.location ~ ' ' ~ t.business_unit)|lower }}">
+        <td><b>{{ t.full_name }}</b></td>
+        <td>{{ t.email }}</td>
+        <td class="meta">
+          {% if t.department %}<span class="tag status">{{ t.department }}</span>{% endif %}
+          {% if t.location %}<span class="tag">{{ t.location }}</span>{% endif %}
+          {% if t.business_unit %}<span class="tag">{{ t.business_unit }}</span>{% endif %}
+          {% if not (t.department or t.location or t.business_unit) %}—{% endif %}
+        </td>
+        <td>
+          <span class="pill {{ t.status }}">{{ t.status }}</span>
+          {% if t.attachment_opened %}<span class="pill clicked">attachment</span>{% endif %}
+          {% if t.reported %}<span class="pill reported">reported</span>{% endif %}
+        </td>
+        <td class="num meta">
+          {% if t.last_event_at %}{{ t.last_event_at.strftime('%b %d, %H:%M:%S') }}{% else %}—{% endif %}
+        </td>
+        <td class="meta">
+          <a href="{{ url_for('tracking.landing', token=t.token) }}" target="_blank" rel="noopener">click ↗</a> ·
+          <a href="{{ url_for('tracking.track_attachment_open', token=t.token) }}" target="_blank" rel="noopener">attach ↗</a> ·
+          <a href="{{ url_for('tracking.report', token=t.token) }}" target="_blank" rel="noopener">report ↗</a> ·
+          <a href="{{ url_for('tracking.training', token=t.token) }}" target="_blank" rel="noopener">training ↗</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="meta" style="margin-top:16px;">
+  Tip: use the “click ↗”, “attach ↗”, “report ↗”, and “training ↗” links to test target flows directly in your browser without sending mail.
+</p>
+
+<script>
+  (function() {
+    var search = document.getElementById('targetSearch');
+    var pills = document.querySelectorAll('#targetFilters .filter-pill');
+    var rows = document.querySelectorAll('#targetTable tbody tr');
+    var active = 'all';
+
+    function apply() {
+      var q = (search.value || '').toLowerCase().trim();
+      rows.forEach(function(r) {
+        var matchQ = !q || r.dataset.search.indexOf(q) !== -1;
+        var matchF = (active === 'all') ||
+                     (active === 'reported' && r.dataset.reported === 'yes') ||
+                     (r.dataset.status === active);
+        r.style.display = (matchQ && matchF) ? '' : 'none';
+      });
+    }
+    search.addEventListener('input', apply);
+    pills.forEach(function(p) {
+      p.addEventListener('click', function() {
+        pills.forEach(function(x) { x.classList.remove('active'); });
+        p.classList.add('active');
+        active = p.dataset.filter;
+        apply();
+      });
+    });
+  })();
+</script>
+{% endblock %}

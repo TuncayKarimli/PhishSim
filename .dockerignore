@@ -1,0 +1,15 @@
+.venv/
+_mailhog/
+instance/
+__pycache__/
+**/__pycache__/
+*.pyc
+.env
+.env.*
+!.env.production.example
+.git/
+.gitignore
+reports/
+tests/
+*.db
+scheduler.lock

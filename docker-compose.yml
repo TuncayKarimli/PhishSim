@@ -1,0 +1,43 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:////app/instance/phishsim.db
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+      - RUN_SCHEDULER=false
+    volumes:
+      - phishsim_data:/app/instance
+    depends_on:
+      - mailhog
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "worker.py"]
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=sqlite:////app/instance/phishsim.db
+      - SMTP_HOST=mailhog
+      - SMTP_PORT=1025
+    volumes:
+      - phishsim_data:/app/instance
+    depends_on:
+      - web
+      - mailhog
+    restart: unless-stopped
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    restart: unless-stopped
+
+volumes:
+  phishsim_data:

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Audit log · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Audit log</h1>
+    <p class="sub">Recent administrative and security events across the console (UTC).</p>
+  </div>
+</div>
+
+{% if logs %}
+<div class="filter-bar">
+  <input type="text" id="auditSearch" class="search-input" placeholder="Filter by user, action, or details…">
+</div>
+
+<div class="card">
+  <table id="auditTable">
+    <thead>
+      <tr>
+        <th>Time (UTC)</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Details</th>
+        <th>IP</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in logs %}
+      <tr data-search="{{ (entry.user_email ~ ' ' ~ entry.action ~ ' ' ~ entry.details ~ ' ' ~ (entry.ip or ''))|lower }}">
+        <td class="num meta">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+        <td><b>{{ entry.user_email }}</b></td>
+        <td><span class="tag status">{{ entry.action }}</span></td>
+        <td>{{ entry.details }}</td>
+        <td class="num meta">{{ entry.ip or '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  document.getElementById('auditSearch').addEventListener('input', function() {
+    var q = (this.value || '').toLowerCase().trim();
+    document.querySelectorAll('#auditTable tbody tr').forEach(function(r) {
+      r.style.display = (!q || r.dataset.search.indexOf(q) !== -1) ? '' : 'none';
+    });
+  });
+</script>
+{% else %}
+<div class="card empty">
+  <h2 style="margin:0">No audit entries yet</h2>
+  <p>Administrative actions and sign-in events will appear here.</p>
+</div>
+{% endif %}
+{% endblock %}

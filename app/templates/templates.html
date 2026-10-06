@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block title %}Email Templates · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Email templates</h1>
+    <p class="sub">Reusable emails for campaigns. Every template includes {{ '{{link}}' }} or {{ '{{qr_code}}' }} so targets have an action.</p>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead><tr><th>Subject</th><th>Name</th><th>Difficulty</th><th style="text-align:right">Actions</th></tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td><b>{{ t.subject }}</b></td>
+        <td>{{ t.name }}</td>
+        <td><span class="tag {{ t.difficulty }}">{{ t.difficulty }}</span></td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn secondary small preview-btn"
+                  data-name="{{ t.name }}"
+                  data-subject="{{ t.subject }}"
+                  data-difficulty="{{ t.difficulty }}"
+                  data-body="{{ t.body }}">Preview</button>
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('templates.delete', template_id=t.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Delete this template?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn danger small" type="submit">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card">
+  <h2 style="margin-top:0">Add a template</h2>
+  <form method="post" action="{{ url_for('templates.add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid-2">
+      <div class="field">
+        <label for="name">Name <span class="hint">— internal label</span></label>
+        <input type="text" id="name" name="name" required>
+      </div>
+      <div class="field">
+        <label for="difficulty">Difficulty</label>
+        <select id="difficulty" name="difficulty">
+          <option value="easy">Easy</option>
+          <option value="medium" selected>Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label for="subject">Subject</label>
+      <input type="text" id="subject" name="subject" required>
+    </div>
+    <div class="field">
+      <label for="body">Body (HTML) <span class="hint">— must include {{ '{{link}}' }} or {{ '{{qr_code}}' }}, may use {{ '{{name}}' }}</span></label>
+      <textarea id="body" name="body" rows="7" required placeholder="&lt;p&gt;Hi {{ '{{name}}' }},&lt;/p&gt;&#10;&lt;p&gt;&lt;a href=&quot;{{ '{{link}}' }}&quot;&gt;Verify&lt;/a&gt;&lt;/p&gt;"></textarea>
+    </div>
+    <button class="btn" type="submit">Add template</button>
+  </form>
+</div>
+{% endif %}
+
+<!-- Template Preview Modal -->
+<div class="modal-backdrop" id="tplModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <b id="modName">Template Preview</b>
+        <span id="modDiff" class="tag" style="margin-left:6px"></span>
+      </div>
+      <button type="button" class="btn secondary small" id="modClose">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="email-preview-wrap" style="margin-top:0">
+        <div class="email-preview-head">
+          <div><b>Subject:</b> <span id="modSubj"></span></div>
+        </div>
+        <div class="email-preview-body" id="modBody"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    var modal = document.getElementById('tplModal');
+    var modName = document.getElementById('modName');
+    var modDiff = document.getElementById('modDiff');
+    var modSubj = document.getElementById('modSubj');
+    var modBody = document.getElementById('modBody');
+    var qrPlaceholder = '<div style="display:inline-grid;place-items:center;width:132px;height:132px;border:2px dashed #2563eb;border-radius:8px;background:#f8fafc;color:#1e293b;font-size:11px;font-weight:700;text-align:center;padding:8px;">[Dynamic PNG<br>QR Code<br>{{ '{{qr_code}}' }}]</div>';
+
+    document.querySelectorAll('.preview-btn').forEach(function(b) {
+      b.addEventListener('click', function() {
+        modName.textContent = b.dataset.name;
+        modDiff.textContent = b.dataset.difficulty;
+        modDiff.className = 'tag ' + b.dataset.difficulty;
+        modSubj.textContent = b.dataset.subject;
+        var html = (b.dataset.body || '')
+          .replace(/\{\{\s*name\s*\}\}/gi, 'Alex')
+          .replace(/\{\{\s*link\s*\}\}/gi, '#preview-link')
+          .replace(/\{\{\s*qr_code\s*\}\}/gi, qrPlaceholder);
+        modBody.innerHTML = html;
+        modal.classList.add('open');
+      });
+    });
+    document.getElementById('modClose').addEventListener('click', function() {
+      modal.classList.remove('open');
+    });
+    modal.addEventListener('click', function(e) {
+      if (e.target === modal) modal.classList.remove('open');
+    });
+  })();
+</script>
+{% endblock %}

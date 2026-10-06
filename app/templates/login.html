@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · PhishSim</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    (function() {
+      var saved = localStorage.getItem('phishsim-theme');
+      if (saved === 'dark' || saved === 'light') {
+        document.documentElement.setAttribute('data-theme', saved);
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div class="center-wrap">
+    <div class="card auth-card" style="max-width:410px">
+      <div class="spread" style="margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;font-weight:700;">
+          <span style="width:10px;height:10px;border-radius:50%;background:var(--stage-clicked);display:inline-block;"></span>
+          PhishSim
+        </div>
+        <span class="tag status">Enterprise Console</span>
+      </div>
+      <h1>Sign in</h1>
+      <p class="meta">Security Awareness Simulation Platform</p>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, msg in messages %}
+          <div class="flash {{ category }}">{{ msg }}</div>
+        {% endfor %}
+      {% endwith %}
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" required autofocus placeholder="admin@example.com">
+        </div>
+        <div class="field">
+          <div class="spread" style="margin-bottom:5px;">
+            <label for="password" style="margin:0">Password</label>
+            <button type="button" id="togglePw" style="background:none;border:none;color:var(--accent);font-size:.78rem;cursor:pointer;padding:0">Show</button>
+          </div>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button class="btn" type="submit" style="width:100%">Sign in</button>
+      </form>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px;">
+        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+        <span class="meta" style="font-size:0.76rem;text-transform:uppercase;letter-spacing:0.05em;">Or continue with SSO</span>
+        <hr style="flex:1;border:none;border-top:1px solid var(--border);">
+      </div>
+
+      {% set providers = sso_providers() if sso_providers is defined else {} %}
+      <div style="display:grid;gap:8px;">
+        <a class="btn secondary" href="{{ url_for('auth.sso_login', provider='entra') }}" style="width:100%;justify-content:space-between;">
+          <span>Microsoft Entra ID (Azure AD)</span>
+          <span class="tag {{ 'easy' if providers.get('entra', {}).get('enabled') else '' }}">
+            {{ 'Active' if providers.get('entra', {}).get('enabled') else 'OIDC' }}
+          </span>
+        </a>
+        <a class="btn secondary" href="{{ url_for('auth.sso_login', provider='google') }}" style="width:100%;justify-content:space-between;">
+          <span>Google Workspace</span>
+          <span class="tag {{ 'easy' if providers.get('google', {}).get('enabled') else '' }}">
+            {{ 'Active' if providers.get('google', {}).get('enabled') else 'OIDC' }}
+          </span>
+        </a>
+        <a class="btn secondary" href="{{ url_for('auth.sso_login', provider='okta') }}" style="width:100%;justify-content:space-between;">
+          <span>Okta Workforce Identity</span>
+          <span class="tag {{ 'easy' if providers.get('okta', {}).get('enabled') else '' }}">
+            {{ 'Active' if providers.get('okta', {}).get('enabled') else 'OIDC' }}
+          </span>
+        </a>
+      </div>
+    </div>
+  </div>
+  <script>
+    var pw = document.getElementById('password');
+    var btn = document.getElementById('togglePw');
+    btn.addEventListener('click', function() {
+      var show = pw.type === 'password';
+      pw.type = show ? 'text' : 'password';
+      btn.textContent = show ? 'Hide' : 'Show';
+    });
+  </script>
+</body>
+</html>

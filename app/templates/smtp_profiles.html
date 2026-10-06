@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}SMTP Profiles · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>SMTP Sending Profiles</h1>
+    <p class="sub">Configure multiple mail relays or domains and choose a specific profile per campaign.</p>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Profile Name</th>
+        <th>Host &amp; Port</th>
+        <th>Default Sender</th>
+        <th>Security</th>
+        <th>Status</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in profiles %}
+      <tr>
+        <td><b>{{ p.name }}</b></td>
+        <td class="num">{{ p.host }}:{{ p.port }}</td>
+        <td class="meta">{{ p.from_address }}</td>
+        <td>
+          {% if p.use_tls %}<span class="tag status">STARTTLS</span>{% else %}<span class="tag">Plain</span>{% endif %}
+          {% if p.username %}<span class="tag easy">Auth</span>{% endif %}
+        </td>
+        <td>
+          {% if p.is_default %}
+            <span class="pill reported">Default</span>
+          {% else %}
+            <span class="pill pending">Available</span>
+          {% endif %}
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('smtp_profiles.test_connection', profile_id=p.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn secondary small" type="submit">Test</button>
+          </form>
+          {% if not p.is_default %}
+          <form method="post" action="{{ url_for('smtp_profiles.set_default', profile_id=p.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn secondary small" type="submit">Set default</button>
+          </form>
+          {% endif %}
+          {% if profiles | length > 1 %}
+          <form method="post" action="{{ url_for('smtp_profiles.delete', profile_id=p.id) }}" style="display:inline"
+                onsubmit="return confirm('Delete this SMTP profile?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn danger small" type="submit">Delete</button>
+          </form>
+          {% endif %}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card">
+  <h2 style="margin-top:0">Add SMTP Profile</h2>
+  <form method="post" action="{{ url_for('smtp_profiles.add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="grid-2">
+      <div class="field">
+        <label for="name">Profile name <span class="hint">— e.g. Corporate Mail Relay</span></label>
+        <input type="text" id="name" name="name" required placeholder="MailHog Local">
+      </div>
+      <div class="field">
+        <label for="from_address">Default From header</label>
+        <input type="text" id="from_address" name="from_address" value="IT Support &lt;it-support@example.com&gt;">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="host">SMTP Host</label>
+        <input type="text" id="host" name="host" required placeholder="smtp.example.com">
+      </div>
+      <div class="field">
+        <label for="port">SMTP Port</label>
+        <input type="number" id="port" name="port" required value="587" min="1" max="65535">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="field">
+        <label for="username">SMTP Username <span class="hint">— optional</span></label>
+        <input type="text" id="username" name="username" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="password">SMTP Password <span class="hint">— optional</span></label>
+        <input type="password" id="password" name="password" autocomplete="new-password">
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;align-items:center;margin-bottom:16px;">
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
+        <input type="checkbox" name="use_tls" style="width:auto"> Use STARTTLS
+      </label>
+      <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;">
+        <input type="checkbox" name="is_default" style="width:auto"> Make default profile
+      </label>
+    </div>
+    <button class="btn" type="submit">Add SMTP Profile</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

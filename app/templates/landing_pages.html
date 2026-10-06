@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Landing Pages · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Custom Landing Pages</h1>
+    <p class="sub">Design reusable credential-capture simulation pages. Supports {{ '{{submit_url}}' }}, {{ '{{email}}' }}, {{ '{{name}}' }}, and {{ '{{company}}' }}.</p>
+  </div>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Slug</th>
+        <th>Placeholders</th>
+        <th style="text-align:right">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in pages %}
+      <tr>
+        <td><b>{{ p.name }}</b></td>
+        <td class="num meta">{{ p.slug }}</td>
+        <td>
+          {% if '{{submit_url}}' in p.html_body %}<span class="tag easy">submit_url</span>{% endif %}
+          {% if '{{email}}' in p.html_body %}<span class="tag status">email</span>{% endif %}
+          {% if '{{company}}' in p.html_body %}<span class="tag medium">company</span>{% endif %}
+        </td>
+        <td style="text-align:right; white-space:nowrap;">
+          <button type="button" class="btn secondary small preview-lp-btn"
+                  data-id="{{ p.id }}"
+                  data-name="{{ p.name }}"
+                  data-html="{{ p.html_body }}">Preview / Edit</button>
+          {% if current_user.is_admin %}
+          <form method="post" action="{{ url_for('landing_pages.delete', page_id=p.id) }}"
+                style="display:inline"
+                onsubmit="return confirm('Delete this landing page?');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn danger small" type="submit">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if current_user.is_admin %}
+<div class="card">
+  <div class="spread" style="margin-bottom:10px;">
+    <h2 style="margin:0" id="editorTitle">Create Custom Landing Page</h2>
+    <button type="button" class="btn secondary small" id="resetEditorBtn" style="display:none">New page mode</button>
+  </div>
+  <form method="post" action="{{ url_for('landing_pages.add') }}" id="lpForm">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="field">
+      <label for="lpName">Landing page name <span class="hint">— shown in the Campaign Builder</span></label>
+      <input type="text" id="lpName" name="name" required placeholder="Okta Workforce Sign-In">
+    </div>
+    <div class="grid-2">
+      <div class="field" style="margin-bottom:0">
+        <label for="lpHtml">HTML Source <span class="hint">— form action="{{ '{{submit_url}}' }}"</span></label>
+        <textarea id="lpHtml" name="html_body" rows="13" required style="font-family:var(--mono);font-size:0.82rem;"><!doctype html>
+<html>
+<head><meta charset="utf-8"><title>{{ '{{company}}' }} Sign-In</title></head>
+<body style="font-family:sans-serif;background:#f8fafc;display:grid;place-items:center;min-height:90vh;">
+  <form method="post" action="{{ '{{submit_url}}' }}" style="background:#fff;padding:28px;border:1px solid #cbd5e1;border-radius:10px;width:340px;">
+    <h2 style="margin-top:0">{{ '{{company}}' }} Portal</h2>
+    <p style="color:#64748b;font-size:13px;">Sign in as {{ '{{email}}' }}</p>
+    <input type="email" name="email" value="{{ '{{email}}' }}" style="width:100%;padding:8px;margin-bottom:10px;box-sizing:border-box;" required>
+    <input type="password" name="password" placeholder="Password" style="width:100%;padding:8px;margin-bottom:14px;box-sizing:border-box;" required>
+    <button type="submit" style="width:100%;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;">Sign in</button>
+  </form>
+</body>
+</html></textarea>
+      </div>
+      <div>
+        <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:6px;">Live Browser Preview <span class="hint" style="font-weight:400">— rendered in sandboxed iframe</span></label>
+        <iframe id="lpPreviewFrame" sandbox="allow-same-origin"
+                style="width:100%;height:295px;border:1px solid var(--border);border-radius:10px;background:#ffffff;"></iframe>
+      </div>
+    </div>
+    <button class="btn" type="submit" id="lpSubmitBtn" style="margin-top:14px;">Save Landing Page</button>
+  </form>
+</div>
+{% endif %}
+
+<script>
+  (function() {
+    var htmlInput = document.getElementById('lpHtml');
+    var nameInput = document.getElementById('lpName');
+    var frame = document.getElementById('lpPreviewFrame');
+    var form = document.getElementById('lpForm');
+    var title = document.getElementById('editorTitle');
+    var submitBtn = document.getElementById('lpSubmitBtn');
+    var resetBtn = document.getElementById('resetEditorBtn');
+    var addUrl = "{{ url_for('landing_pages.add') }}";
+
+    function renderPreview() {
+      if (!htmlInput || !frame) return;
+      var raw = htmlInput.value || '';
+      var rendered = raw
+        .replace(/\{\{\s*company\s*\}\}/gi, 'Acme Corp')
+        .replace(/\{\{\s*email\s*\}\}/gi, 'alex@example.com')
+        .replace(/\{\{\s*name\s*\}\}/gi, 'Alex Rivera')
+        .replace(/\{\{\s*submit_url\s*\}\}/gi, '#preview-submit');
+      frame.srcdoc = rendered;
+    }
+
+    if (htmlInput) {
+      htmlInput.addEventListener('input', renderPreview);
+      renderPreview();
+    }
+
+    document.querySelectorAll('.preview-lp-btn').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (!htmlInput) return;
+        nameInput.value = btn.dataset.name;
+        htmlInput.value = btn.dataset.html;
+        form.action = '/landing-pages/' + btn.dataset.id + '/edit';
+        title.textContent = 'Edit Landing Page: ' + btn.dataset.name;
+        submitBtn.textContent = 'Update Landing Page';
+        if (resetBtn) resetBtn.style.display = '';
+        renderPreview();
+        form.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+
+    if (resetBtn) {
+      resetBtn.addEventListener('click', function() {
+        form.action = addUrl;
+        nameInput.value = '';
+        title.textContent = 'Create Custom Landing Page';
+        submitBtn.textContent = 'Save Landing Page';
+        resetBtn.style.display = 'none';
+      });
+    }
+  })();
+</script>
+{% endblock %}

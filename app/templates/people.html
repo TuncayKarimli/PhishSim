@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}People &amp; Departments · PhishSim{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>People &amp; Department Risk</h1>
+    <p class="sub">Aggregate employee risk across campaigns and compare departments, locations, and business units. Score = submits×3 + clicks×1 − reports×1.</p>
+  </div>
+</div>
+
+{% set high_count = rows | selectattr('band', 'equalto', 'high') | list | length %}
+{% set med_count = rows | selectattr('band', 'equalto', 'medium') | list | length %}
+{% set low_count = rows | selectattr('band', 'equalto', 'low') | list | length %}
+{% set reporters = rows | selectattr('reported', 'gt', 0) | list | length %}
+
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Total People</div>
+    <div class="kpi-val">{{ rows | length }}</div>
+    <div class="kpi-sub">Tracked across campaigns</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">High Risk</div>
+    <div class="kpi-val" style="color: var(--stage-submitted)">{{ high_count }}</div>
+    <div class="kpi-sub">Score ≥ 3 (credential submitters)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Medium Risk</div>
+    <div class="kpi-val" style="color: var(--stage-clicked)">{{ med_count }}</div>
+    <div class="kpi-sub">Score 1–2 (link clickers)</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Phish Reporters</div>
+    <div class="kpi-val" style="color: var(--safe)">{{ reporters }}</div>
+    <div class="kpi-sub">{{ low_count }} low-risk employees</div>
+  </div>
+</div>
+
+{% if dept_summary or loc_summary or bu_summary %}
+<div class="card" style="margin-bottom:16px;">
+  <div class="spread" style="margin-bottom:12px;">
+    <b>Organisational Unit Risk Comparison</b>
+    <div class="filter-pills" id="groupTabs">
+      <button type="button" class="filter-pill active" data-tab="dept">By Department</button>
+      <button type="button" class="filter-pill" data-tab="loc">By Location</button>
+      <button type="button" class="filter-pill" data-tab="bu">By Business Unit</button>
+    </div>
+  </div>
+
+  {% for tab_id, summary_list in [('dept', dept_summary), ('loc', loc_summary), ('bu', bu_summary)] %}
+  <table class="group-table" id="tab-{{ tab_id }}" style="{{ '' if tab_id == 'dept' else 'display:none' }}">
+    <thead>
+      <tr>
+        <th>Group</th>
+        <th>Employees</th>
+        <th>Targeted</th>
+        <th>Clicked</th>
+        <th>Submitted</th>
+        <th>Reported</th>
+        <th>Compromise Rate</th>
+        <th>Avg Risk</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for g in summary_list %}
+      <tr>
+        <td><b>{{ g.name }}</b></td>
+        <td class="num">{{ g.people_count }}</td>
+        <td class="num">{{ g.targeted }}</td>
+        <td class="num">{{ g.clicked }}</td>
+        <td class="num" style="color: var(--stage-submitted); font-weight:600">{{ g.submitted }}</td>
+        <td class="num" style="color: var(--safe); font-weight:600">{{ g.reported }}</td>
+        <td class="num">{{ g.compromise_rate }}%</td>
+        <td><span class="pill {{ g.band }}">{{ g.band }}</span> <span class="num meta">({{ g.avg_score }})</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if rows %}
+<div class="filter-bar">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <input type="text" id="peopleSearch" class="search-input" placeholder="Search name, email, department…">
+    <select id="deptFilter" style="width:auto;padding:7px 10px;font-size:0.84rem;">
+      <option value="">All Departments</option>
+      {% for d in departments %}
+      <option value="{{ d|lower }}" {{ 'selected' if sel_dept == d }}>{{ d }}</option>
+      {% endfor %}
+    </select>
+    <select id="locFilter" style="width:auto;padding:7px 10px;font-size:0.84rem;">
+      <option value="">All Locations</option>
+      {% for l in locations %}
+      <option value="{{ l|lower }}" {{ 'selected' if sel_loc == l }}>{{ l }}</option>
+      {% endfor %}
+    </select>
+    <select id="buFilter" style="width:auto;padding:7px 10px;font-size:0.84rem;">
+      <option value="">All Business Units</option>
+      {% for b in business_units %}
+      <option value="{{ b|lower }}" {{ 'selected' if sel_bu == b }}>{{ b }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-pills" id="peopleFilters">
+    <button type="button" class="filter-pill active" data-band="all">All ({{ rows | length }})</button>
+    <button type="button" class="filter-pill" data-band="high">High ({{ high_count }})</button>
+    <button type="button" class="filter-pill" data-band="medium">Medium ({{ med_count }})</button>
+    <button type="button" class="filter-pill" data-band="low">Low ({{ low_count }})</button>
+  </div>
+</div>
+
+<div class="card">
+  <table id="peopleTable">
+    <thead>
+      <tr>
+        <th>Person</th>
+        <th>Department / Scope</th>
+        <th>Campaigns</th>
+        <th>Opened</th>
+        <th>Clicked</th>
+        <th>Submitted</th>
+        <th>Reported</th>
+        <th>Risk</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in rows %}
+      <tr data-band="{{ p.band }}"
+          data-dept="{{ p.department|lower }}"
+          data-loc="{{ p.location|lower }}"
+          data-bu="{{ p.business_unit|lower }}"
+          data-search="{{ (p.name ~ ' ' ~ p.email ~ ' ' ~ p.department ~ ' ' ~ p.location ~ ' ' ~ p.business_unit)|lower }}">
+        <td>
+          <b>{{ p.name }}</b>
+          {% if p.name != p.email %}<div class="meta">{{ p.email }}</div>{% endif %}
+        </td>
+        <td class="meta">
+          {% if p.department %}<span class="tag status">{{ p.department }}</span>{% endif %}
+          {% if p.location %}<span class="tag">{{ p.location }}</span>{% endif %}
+          {% if p.business_unit %}<span class="tag">{{ p.business_unit }}</span>{% endif %}
+          {% if not (p.department or p.location or p.business_unit) %}—{% endif %}
+        </td>
+        <td class="num">{{ p.targeted }}</td>
+        <td class="num">{{ p.opened }}</td>
+        <td class="num">{{ p.clicked }}</td>
+        <td class="num" style="color: var(--stage-submitted); font-weight:600">{{ p.submitted }}</td>
+        <td class="num" style="color: var(--safe); font-weight:600">{{ p.reported }}</td>
+        <td><span class="pill {{ p.band }}">{{ p.band }}</span> <span class="num meta">({{ p.score }})</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<script>
+  (function() {
+    var search = document.getElementById('peopleSearch');
+    var deptFilter = document.getElementById('deptFilter');
+    var locFilter = document.getElementById('locFilter');
+    var buFilter = document.getElementById('buFilter');
+    var pills = document.querySelectorAll('#peopleFilters .filter-pill');
+    var rows = document.querySelectorAll('#peopleTable tbody tr');
+    var band = 'all';
+
+    function apply() {
+      var q = (search.value || '').toLowerCase().trim();
+      var d = (deptFilter.value || '').toLowerCase();
+      var l = (locFilter.value || '').toLowerCase();
+      var b = (buFilter.value || '').toLowerCase();
+      rows.forEach(function(r) {
+        var matchQ = !q || r.dataset.search.indexOf(q) !== -1;
+        var matchB = band === 'all' || r.dataset.band === band;
+        var matchD = !d || r.dataset.dept === d;
+        var matchL = !l || r.dataset.loc === l;
+        var matchU = !b || r.dataset.bu === b;
+        r.style.display = (matchQ && matchB && matchD && matchL && matchU) ? '' : 'none';
+      });
+    }
+    search.addEventListener('input', apply);
+    deptFilter.addEventListener('change', apply);
+    locFilter.addEventListener('change', apply);
+    buFilter.addEventListener('change', apply);
+    pills.forEach(function(p) {
+      p.addEventListener('click', function() {
+        pills.forEach(function(x) { x.classList.remove('active'); });
+        p.classList.add('active');
+        band = p.dataset.band;
+        apply();
+      });
+    });
+
+    document.querySelectorAll('#groupTabs .filter-pill').forEach(function(tabBtn) {
+      tabBtn.addEventListener('click', function() {
+        document.querySelectorAll('#groupTabs .filter-pill').forEach(function(x) { x.classList.remove('active'); });
+        tabBtn.classList.add('active');
+        document.querySelectorAll('.group-table').forEach(function(tbl) { tbl.style.display = 'none'; });
+        var target = document.getElementById('tab-' + tabBtn.dataset.tab);
+        if (target) target.style.display = '';
+      });
+    });
+  })();
+</script>
+{% else %}
+<div class="card empty">
+  <h2 style="margin:0">No data yet</h2>
+  <p>Once campaigns have targets and activity, per-person and per-department risk shows up here.</p>
+</div>
+{% endif %}
+{% endblock %}
