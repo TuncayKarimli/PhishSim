@@ -1,4 +1,4 @@
-"""Standalone background scheduler worker for multi-container deployments.
+"""Standalone background scheduler employee for multi-container deployments.
 
 Run with:
     python worker.py
