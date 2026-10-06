@@ -13,5 +13,5 @@ if __name__ == "__main__":
     # process; WERKZEUG_RUN_MAIN is only set in that child, so we start there).
     if not is_debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         start_scheduler(app)
-    # Bind to 0.0.0.0 to allow LAN devices to open tracking links
+    # host=0.0.0.0 so other devices on your LAN can access the tracking links.
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")), debug=is_debug)
