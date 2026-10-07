@@ -3,7 +3,6 @@
 All settings are read from environment variables (loaded from a .env file in
 development). Copy .env.example to .env and edit the values there.
 """
-a=1
 import os
 from dotenv import load_dotenv
 
